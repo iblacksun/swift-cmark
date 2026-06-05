@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "registry.h"
 #include "node.h"
 #include "houdini.h"
@@ -10,8 +11,7 @@
 
 #define START_TYPE_ALLOCATOR_IMPL \
   _Pragma("clang diagnostic push") \
-  _Pragma("clang diagnostic ignored \"-Wallocator-wrappers\"") \
-  _Pragma("clang diagnostic ignored \"-Wunguarded-availability-new\"")
+  _Pragma("clang diagnostic ignored \"-Wallocator-wrappers\"")
 #define END_TYPE_ALLOCATOR_IMPL \
   _Pragma("clang diagnostic pop")
 
@@ -30,15 +30,22 @@ const char *cmark_version_string(void) { return CMARK_GFM_VERSION_STRING; }
 __attribute__((weak_import)) void * __sized_by_or_null(count * size) malloc_type_calloc(size_t count, size_t size, malloc_type_id_t type_id) __result_use_check __alloc_size(1,2);
 __attribute__((weak_import)) void * __sized_by_or_null(size) malloc_type_realloc(void * __unsafe_indexable ptr, size_t size, malloc_type_id_t type_id) __result_use_check __alloc_size(2);
 
+#define IS_TYPED_MALLOC_AVAILABLE __builtin_available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, driverkit 23.0, *)
+
 // These are the typed allocator versions of the allocator wrappers.
 // The typed-operation behavior is managed in mem.c
 START_TYPE_ALLOCATOR_IMPL
 
 static void *xcalloc_typed(size_t nmem, size_t size, cmark_malloc_type_id type_id) {
   void *ptr;
-  if (malloc_type_calloc)
-    ptr = malloc_type_calloc(nmem, size, type_id);
-  else {
+  bool calloc_called = false;
+  if (IS_TYPED_MALLOC_AVAILABLE) {
+    if (malloc_type_calloc) {
+      calloc_called = true;
+      ptr = malloc_type_calloc(nmem, size, type_id);
+    }
+  }
+  if (!calloc_called) {
     #if defined(_MALLOC_TYPE_MALLOC_IS_BACKDEPLOYING) && _MALLOC_TYPE_MALLOC_IS_BACKDEPLOYING
     ptr = malloc_type_calloc_backdeploy(nmem, size, type_id);
     #else
@@ -57,9 +64,14 @@ static void *xcalloc_typed(size_t nmem, size_t size, cmark_malloc_type_id type_i
 
 static void *xrealloc_typed(void *ptr, size_t size, cmark_malloc_type_id type_id) {
   void *new_ptr;
-  if (malloc_type_realloc) {
-    new_ptr = malloc_type_realloc(ptr, size, type_id);
-  } else {
+  bool realloc_called = false;
+  if (IS_TYPED_MALLOC_AVAILABLE) {
+    if (malloc_type_realloc) {
+      realloc_called = true;
+      new_ptr = malloc_type_realloc(ptr, size, type_id);
+    }
+  }
+  if (!realloc_called) {
     #if defined(_MALLOC_TYPE_MALLOC_IS_BACKDEPLOYING) && _MALLOC_TYPE_MALLOC_IS_BACKDEPLOYING
     new_ptr = malloc_type_realloc_backdeploy(ptr, size, type_id);
     #else
