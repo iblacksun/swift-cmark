@@ -19,7 +19,7 @@ import PackageDescription
 let package = Package(
     name: "cmark-gfm",
     platforms: [
-        .iOS(.v16), .macOS(.v13), .watchOS(.v10)
+        .iOS(.v14), .macOS(.v13), .watchOS(.v7)
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
